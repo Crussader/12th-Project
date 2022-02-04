@@ -1,4 +1,12 @@
 # 12th-Project
+Overview
+-----
+A Hospital Program which has few of the following core feautres:
+- Adding a Paitent
+- Removing a Patient
+- Updating a Patient Records
+
+And some more goodies...
 
 Rquirements
 -----
