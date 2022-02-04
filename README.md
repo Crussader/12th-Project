@@ -12,3 +12,5 @@ Uses the following Libs
 `pip install pyjwt`
 
 `pip install customtkinter`
+
+Note: Unpack the themes.zip into the same folder and it can be used
