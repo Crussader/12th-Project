@@ -1,12 +1,17 @@
+import numpy
+from customtkinter import CTk, CTkLabel, CTkProgressBar
+
 from config import *
 from database import *
 from defaultentry import *
 from imagetk import *
 from login import *
 from messagebox import *
+from signup import *
 
-import numpy
-from customtkinter import CTkLabel, CTk, CTkProgressBar
+__all__ = [a for a in globals().keys() 
+           if not a.startswith(("_", "CTk", "numpy"))]
+
 
 def fade_in_out(current, next, *args, **kwargs):
     next = next
@@ -33,15 +38,13 @@ def fade_in_out(current, next, *args, **kwargs):
 
 def loading_screen(cls: Login):
 
-    from utils import center, calculate
+    from utils import calculate, center
 
-    cls.root.after(1000)
-    cls.root.destroy() 
-    
+    # cls.root.after(1000)
+    # cls.root.destroy() 
     # creating a new window while the old one is running
     # causes the gif and other labels to not even work
     # so destroying it and creating a new one is better
-
     # using cls.root.after(1000, cls.root.destroy)
     # still creates next window so by just waiting for 1 second
     # then destroying manually works
@@ -90,6 +93,11 @@ def loading_screen(cls: Login):
                 loading_perc.set_text(text=f"{round(num, 2)*100}%")
                 win.update()
 
-    win.after(1000)
-    run()
+    win.after(500) # wait for .5 seconds
+    run()          # load the things
+    fade_in_out(win, cls.main) # fade in and out
     win.mainloop()
+
+# if __name__ == "__main__":
+#     loading_screen(Login())
+    # print([a for a in globals().values() if a != '__main__' and a])

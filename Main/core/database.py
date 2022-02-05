@@ -1,6 +1,8 @@
 import mysql.connector as mysql 
 from mysql.connector.cursor import MySQLCursor
 
+__all__ = ('Database',)
+
 class Database:
 
     def __init__(self, from_config=True, **kwargs):
