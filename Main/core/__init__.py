@@ -10,7 +10,7 @@ from messagebox import *
 from signup import *
 
 __all__ = [a for a in globals().keys() 
-           if not a.startswith(("_", "CTk", "numpy"))]
+           if not a.startswith(("_", "CT", "numpy"))]
 
 
 def fade_in_out(current, next, *args, **kwargs):

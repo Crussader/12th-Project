@@ -40,7 +40,7 @@ class Config:
         config = ConfigParser()
         data = config.read_dict({}, cls.path)
         if not data:
-            data = Config._set_default()
+            Config._set_default(config)
 
         cls.config = config
         if section:
@@ -67,3 +67,11 @@ class Config:
             key, token = token_decode(token)
             return jwt.decode(token, key)
         return {}
+
+# User Config Structure
+# {'username': '',
+#  'password': '',
+#  'email': '',
+#  'first_name': '',
+#  'last_name': '',
+#  'phone': ''}
