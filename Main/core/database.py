@@ -137,12 +137,3 @@ class Database:
 
     def close(self):
         self.cnx.close()
-
-if __name__ == '__main__':
-    db = Database(from_config=False, host="localhost", password='panipuri123*', user='root', database='hospital')
-    # db.add_rec('paitents', {'id': 1, 'first_name': 'sai', 'last_name': 'krishina'})
-    db.update_rec(1, 'paitents', {'gender': 'male', 'age': 20, 'doctor_in_charge': 123})
-    a = db.find_rec(1, "ID", 'paitents')
-    print(a)
-
-    # print(db)
