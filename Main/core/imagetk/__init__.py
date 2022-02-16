@@ -9,7 +9,7 @@ from ..utils import *
 __all__ = ('get_image', 'GIF',)
 
 
-def get_image(image: str, wh=(40, 40), basic=False) -> ImageTk.PhotoImage:
+def get_image(image: str, wh=(40, 40), basic=False, kw=True) -> ImageTk.PhotoImage:
     """
     Load an image from the assets folder
     """
@@ -45,6 +45,7 @@ class GIF(CTkLabel):
             self.max = im.n_frames
         self.images = [PhotoImage(file=self.path, format="gif -index %i" % i)
                        for i in range(self.max)]
+
         super().__init__(master, cnf, **kwargs)
 
     def start(self, ind: int = 0):
