@@ -17,6 +17,7 @@ Uses the following Libs
 - Pillow
 - JSON Web Token (jwt)
 - [Sun-Valley-ttk-theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
+- [tksvg](https://github.com/TkinterEP/python-tksvg)
 - *more will be added
 
 `pip install pyjwt`
