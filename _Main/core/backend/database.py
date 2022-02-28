@@ -1,3 +1,32 @@
+"""
+Database Structure for Hospital
+|
+├─ Users ─── (General Database of all Users that can be accesed by the Admin)
+|           ├─ id (Primary Key)
+|           ├─ name
+|           ├─ email (if the same email is found then we will ask if we want to link it to them)
+|           ├─ _password (ill use tokens so it will remain safe)
+|           ├─ level (integer like 1, 2, 3 (user, doctor, admin))
+|           ├─ gender (int 1, 2, 3 (Male, Female, Other))
+|           ├─ dob (string)
+|           ├─ linked_id (linked id if any)
+├─ Paitents ────
+|                ├─ id (Primary Key)
+|                ├─ first_name
+|                ├─ last_name
+|                ├─ dob (DD/MM/YYYY/Age)
+|                ├─ doctor_id (int)
+|                ├─ user_id (`User` if there is one or else `DummyUser` is used)
+├─ Doctor ────
+|              ├─ id (Primary Key (Different one from users))
+|              ├─ name
+|              ├─ age
+|              ├─ department
+|              ├─ _extra (like degrees, etc.)
+|              ├─ user_id
+
+"""
+
 from typing import Dict, Optional, Union
 
 import mysql.connector as mysql
@@ -17,7 +46,8 @@ def table_exists(table=True, kwargs=True):  # checks if table or kwargs is not e
             self, *other = args
             if table:
                 if not (name := kw.get('table')):
-                    raise ValueError("No Table Name given")
+                    if not isinstance(other, str):
+                        raise ValueError("No Table Name given")
                 else:
                     kw.update({'table': name or self.table})
 
@@ -31,6 +61,8 @@ def table_exists(table=True, kwargs=True):  # checks if table or kwargs is not e
 
 
 class Database:
+
+    cache = {}
 
     def __init__(self, **kwargs):
 
@@ -46,9 +78,13 @@ class Database:
             print("connected!")
 
     @classmethod
-    def from_config(cls):
+    def from_config(cls, table: str = ''):
         config = Config.load('database')
-        return cls(**config)
+        _cls = cls(**config)
+        if table:
+            _cls._table = table
+
+        return _cls
 
     @property
     def table(self) -> str:
@@ -81,31 +117,79 @@ class Database:
     def is_connected(self):
         return self.cnx.is_connected()
 
-    @table_exists()
     def add_rec(self, table: Optional[str] = '', kwargs: Dict[str, str] = {}) -> bool:
         keys = ', '.join(kwargs.keys())
         values = ', '.join(['%s'] * len(kwargs))
         sql = f"INSERT INTO {table} ({keys}) VALUES ({values})"
         try:
             self.cursor.execute(sql, tuple(kwargs.values()))
-        except mysql.IntegrityError:
+        except mysql.IntegrityError: # if there is a duplicate
             return False
         else:
             self.cnx.commit()
-            if self.cursor.rowcount:
-                return True
-        return False
+            return True
+
+    def _fetch_rec(self, id, table: str):
+        rec = self.cache.get(id)
+        if rec:
+            return rec
+
+        sql = 'select * from {} where id={}'.format(table, id) 
+        self.cursor.execute(sql)
+        _raw = self.cursor.fetchone()
+
+        self.cache[id] = _raw
+        return _raw
+
+    def _try_fetching(self, param, table, search, raw):
+        try:
+            self.cursor.execute(param.format(table), (search,))
+        except mysql.ProgrammingError as e:
+            return None
+        else:
+            if (result := self.cursor.fetchall()) is not []:
+                if raw:
+                    return raw
+
+                for res in result:
+                    if table == 'paitents':
+                        *other, doctor_id, user_id = res
+                        result = Paitent(*other, None, None)
+
+                        if user_id and not (user := self.cache.get(user_id)):
+                            user = self._fetch_rec(user_id, table='users')
+                            *other, _ = user
+                            result.user = User(*other, result)
+                        
+                        if doctor_id and not (doctor := self.cache.get(doctor_id)):
+                            doctor = self._fetch_rec(doctor_id, table='doctor')
+                            result.doctor = Doctor(*doctor)
+
+                    elif table == 'users':
+                        *other, linked_id, paitent_id = res
+                        result = User(*other, None, None)
+
+                        if linked_id and not (linked := self.cache.get(linked_id)):
+                            linked = self.find_rec(linked_id, table='users') # linked user is different
+                            result.linked = linked.one()
+                        
+                        if paitent_id and not (paitent := self.cache.get(paitent_id)):
+                            paitent = self.find_rec(paitent_id, table='paitents')
+                            result.paitent = paitent.one()
+
+                    elif table == 'doctor':
+                        result = Doctor(*res)
 
     @table_exists(kwargs=False)
-    def find_rec(self, search: Union[str, int], filter_by: str = 'ID', table: Optional[str] = '', raw=False):
+    def find_rec(self, search: Union[str, int], filter_by: str = '', table: Optional[str] = '', raw=False):
         search_params = {
-            "ID": "select * from %s where id = %s",
-            "AGE": "select * from %s where age = %s",
-            "FIRST_NAME": "select * from %s where first_name = %s",
-            "LAST_NAME": "select * from %s where last_name = %s",
-            "DOCTOR_IN_CHARGE": "select * from %s where doctor_in_charge = %s",
-            "DEPARTMENT": "select * from %s where department = %s",
-            "EMAIL": "select * from %s where email = %s"
+            "ID": "select * from {} where id = %s",
+            "AGE": "select * from {} where age = %s",
+            "LINKED_ID": 'select * from {} where linked_id = %s',
+            "FIRST_NAME": "select * from {} where first_name = %s",
+            "LAST_NAME": "select * from {} where last_name = %s",
+            "DEPARTMENT": "select * from {} where department = %s",
+            "EMAIL": "select * from {} where email = %s",
         }
 
         if filter_by not in search_params.keys():
@@ -113,39 +197,22 @@ class Database:
 
         if isinstance(search, int):
             search_params = {k: v for k, v in search_params.items() if k in [
-                'ID', 'AGE']}
+                'ID', 'AGE', 'LINKED_ID']}
         elif isinstance(search, str):
             search_params = {k: v for k, v in search_params.items() if k not in [
-                'ID', 'AGE']}
+                'ID', 'AGE', 'LINKED_ID']}
         else:
             raise TypeError("Search Parameter must be an int or str")
 
         results = []
-        for param in search_params.values():
-            try:
-                self.cursor.execute(param, (table, search))
-            except mysql.ProgrammingError:
-                continue
-            else:
-                if (result := self.cursor.fetchall()) is not []:
-                    if raw:
-                        results.extend(result)
-                        continue
-                    for res in result:
-                        if table == 'paitents':
-                            *other, user_id = res
-                            if user_id:
-                                user = self.find_rec(
-                                    user_id, filter_by="ID", table='users', raw=True)
-
-                            result = Paitent(
-                                *other, User(*user.one()) if user_id else DummyUser(None))
-                        elif table == 'users':
-                            result = User(*result)
-                        elif table == 'staff':
-                            result = Doctor(*result)
-
-                        results.append(result)
+        if filter_by:
+            result = self._try_fetching(search_params.get(filter_by), 
+                                        table, search, raw)
+            if result:
+                results.append(result)
+        else:
+            for param in search_params.values():
+                result = self._try_fetching(param, table, search, raw)
 
         return Result(results)
 
@@ -154,8 +221,9 @@ class Database:
         update = ', '.join(f"{k}={v}" if isinstance(v, int) else f'{k}="{v}"'
                            for k, v in kwargs.items())
 
-        sql = "UPDATE %s SET %s WHERE id = %s"
-        self.cursor.execute(sql, (table, update, id))
+        sql = "UPDATE {} SET {} WHERE id = %s".format(table, update)
+        
+        self.cursor.execute(sql, (id, ))
         if self.cursor.rowcount:
             self.cnx.commit()  # commit only if there is rowcount
             return True        # so that would mean there was a change
@@ -176,11 +244,13 @@ class Database:
 
 
 if __name__ == '__main__':
-
-    # import timeit
     db = Database.from_config()
-    # db.add_rec(table='paitents', kwargs={'id': 1, 'first_name': 'sai', 'last_name': 'krishina',
-    #            'gender': 'male', 'age': 20, 'doctor_in_charge': 0, 'department': 0})
-    # a = db.find_rec(1, table='paitents')
-    # print(a)
-    # print(timeit.timeit("db.find_rec(1, table='paitents')", globals=globals(),number=100))
+    # b = db.update_rec(1, table='paitents', kwargs={'id': 1, 'first_name': 'sai', 
+    #                                                'last_name': 'krishina', 'gender': 1, 'dob': '2008-05-06'})
+    # b = db.update_rec(1, table='users', kwargs={'paitent_id': 1})
+    # print(b)
+    # db.add_rec(table='users', kwargs={'id': 1, 'name': 'sai krishna', 'email': 'sai@gamil.com',
+    #                                   '_password': 'abc', 'gender': 1, 'dob': '2008-05-06'})
+    # print(timeit.timeit("db.find_rec(1, table='paitents')", globals=globals(), number=100))
+    a: User = db.find_rec(1, table='users').one()
+    

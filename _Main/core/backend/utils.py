@@ -106,20 +106,41 @@ def run_threaded(func):
         t = Thread(target=func, args=args, kwargs=kwargs)
         t.start()
         threads.append(t)
+        # t.join()
 
     return inner
 
 
 class Defont:
-    font = ("Avenir",)
+    fonts = ("Avenir", )
 
     @classmethod
-    def add(cls, size: int, extra: str = ""):
+    def add(cls, size: int, extra: str = "", font: str=''):
         if not isinstance(extra, str):
             raise ValueError("extra must be a string")
 
-        return cls.font + (size,) if not extra else cls.font + (size, extra)
+        if font:
+            font = (cls.fonts[cls.fonts.index(font)], )
+        else:
+            font = (cls.fonts[-1], )
+        return font + (size,) if not extra else font + (size, extra)
+
+    @classmethod
+    def new(cls, font: str):
+        import pyglet
+        pyglet.font.add_file(get_outer_path('assets', 'fonts', font))
+        cls.fonts += (font.split('.')[0], )
+        return cls
+
+
 
 
 if __name__ == "__main__":
-    print(get_outer_path("config", dir_only=True))
+    # import pyglet, tkinter
+    # pyglet.font.add_file(get_outer_path('assets', 'fonts', 'Montserrat.ttf'))
+    # root = tkinter.Tk()
+    # MyLabel = tkinter.Label(root,text="test",font=('Montserrat',25))
+    # MyLabel.pack()
+    # root.mainloop()
+    pass
+

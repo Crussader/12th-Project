@@ -1,9 +1,12 @@
 from dataclasses import dataclass
+from datetime import date
+from typing import Optional, Union
 
 from customtkinter import *
 
-from .imagetk import get_image
-from .utils import Color, Defont
+# from database import Database
+# from .imagetk import get_image
+# from .utils import Color, Defont
 
 __all__ = (
     'Result',
@@ -11,9 +14,15 @@ __all__ = (
     'Level',
     'Doctor',
     'User',
-    'DummyUser',
     'Paitent',
+    'UserType',
+    'PaitentType',
+    'DoctorType',
 )
+
+UserType = Optional['User']
+PaitentType = Optional['Paitent']
+DoctorType = Optional['Doctor']
 
 
 @dataclass
@@ -72,7 +81,7 @@ class Department:
     dep: get
 
 
-@dataclass
+@dataclass(slots=True)
 class Level:
 
     @classmethod
@@ -88,7 +97,7 @@ class Level:
     lvl: get_level
 
 
-@dataclass
+@dataclass(slots=True)
 class Doctor:
     id: int
     name: str
@@ -97,45 +106,36 @@ class Doctor:
     degrees: str
 
 
-@dataclass
+@dataclass(slots=True)
 class User:
-    user_id: int
-    name: str
-    password: str
-    email: str
-    level: Level
-    _display_picture: str
 
-    def __repr__(self):
-        return f"User(name={self.name} level={self.level} dp={self._display_picture})"
+
+    id: int
+    name: str
+    email: str
+    _password: str
+    _gender: int
+    level: Level
+    dob: str
+    linked: UserType
+    paitent: PaitentType
 
     @property
-    def display_picture(self):
-        from .imagetk import get_image
-        return get_image(self._display_picture)
-        
+    def gender(self):
+        return [None, 'Male', 'Female', 'Other'][self._gender]
 
-    dp = display_picture  # an alias so user.dp can also be done
-
-
-@dataclass
-class DummyUser:
-    """A Dummy Class in the case user_id is none"""
-    user: str
-
-
-@dataclass
+@dataclass(slots=True)
 class Paitent:
     id: int
     first_name: str
     last_name: str
-    age: int
+    dob: date
     gender: str
-    doctor_id: int  # The doctor which is responsible for this paitent
-    department: Department
-    user: User
+    doctor: Doctor  # The doctor which is responsible for this paitent
+    user: UserType
 
     @property
     def name(self):
         return ' '.join([self.first_name, self.last_name])
+
 

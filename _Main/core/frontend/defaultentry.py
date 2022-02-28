@@ -1,5 +1,5 @@
 from tkinter import ttk
-from typing import Tuple, Union, Dict
+from typing import Tuple, Union, Dict, List
 from customtkinter import CTkLabel
 
 __all__ = ('DefaultEntryText',)
@@ -21,7 +21,7 @@ class DefaultEntryText:
                 f"Expected {type(ttk.Entry)} but got {type(entry)}")
 
         name = name or entry.winfo_name()
-        ret = cls(default_text, entry, mode, **kwargs)
+        ret = cls(default_text, entry, mode, name=name, **kwargs)
         cls.entires[name] = ret
         return ret
 
@@ -51,7 +51,6 @@ class DefaultEntryText:
 
     @classmethod
     def set_defaults(cls, *entries: Union[str, 'DefaultEntryText']):
-        print(entries)
         if not entries:
             for k, v in cls.entires.items():
                 v.set_default()
@@ -63,14 +62,23 @@ class DefaultEntryText:
                         cls.entires.get(entry).set_default()
                     except AttributeError:
                         continue
-                elif isinstance(entry, ttk.Entry):
+                elif isinstance(entry, cls):
                     entry.set_default()
+
+    @classmethod
+    def load_all_base(cls, base: str) -> List['DefaultEntryText']:
+        entries = [v for k, v in cls.entires.items() 
+                   if k.split('.')[0] == base]
+        
+        return entries 
+
 
     def __init__(self, text: str, entry: ttk.Entry, mode: str = '',
                  label=None, enter_command=None, name=None):
         self.text = text
         self.entry = entry
         self.mode = mode
+        self.name = name
         self.label = label
 
         if enter_command and callable(enter_command):
@@ -85,6 +93,12 @@ class DefaultEntryText:
 
         if name is not None:
             self.entires[name] = self
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} name={self.name} text={self.text} mode={self.mode}>"
+
+    def get_text(self):
+        return '' if self.entry.get() == self.text else self.entry.get()
 
     def handle_in(self, _=''):
         if self.entry.get() == self.text:

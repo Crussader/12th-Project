@@ -3,13 +3,13 @@ from tkinter import PhotoImage
 from customtkinter import CTkLabel
 from PIL import Image, ImageTk
 from tksvg import SvgImage
-
+from typing import Union
 from .utils import *
 
 __all__ = ('get_image', 'GIF',)
 
 
-def get_image(image: str, wh=(40, 40), basic=False) -> ImageTk.PhotoImage:
+def get_image(image: str, wh=(40, 40), basic=False) -> Union[ImageTk.PhotoImage, SvgImage]:
     """
     Load an image from the assets folder
     """

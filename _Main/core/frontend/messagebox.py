@@ -10,18 +10,18 @@ from .utils import *
 
 __all__ = ('MessageBox',)
 
+NONE_COMMAND = (lambda: None)
 
 class MessageBox:
 
     root = None
-    
+
     @classmethod
     def command(cls, command):
         def inner():
             cls.root.destroy()
             command()
         return inner
-        
 
     @classmethod
     def create(cls, level: str, type_: str, message: str, yes_command: Callable[[None], None] = None, no_command: Callable[[None], None] = None):
@@ -48,18 +48,19 @@ class MessageBox:
 
         win = Toplevel()
         win.attributes('-topmost', True)
-        cls.root = win
         win.overrideredirect(True)
-        win.geometry("500x200")
-        load_theme(win)
-        center(win, 500, 200)
+        cls.root = win
+        
+        win.geometry("600x200")
+        center(win, 600, 200)
+
         title_frame = ttk.Frame(win, relief='flat')
         close = ttk.Button(title_frame, text="X", command=win.destroy)
         title = ttk.Label(title_frame, text=level, font=Defont.add(15))
-        close.pack(side='right')
-        title.pack(side='top')
-        title_frame.grid(row=0, column=0, columnspan=2, sticky='ew')
-        title_frame.rowconfigure(0, weight=1)
+        close.pack(side='right', anchor='ne')
+        title.pack(side='top', anchor='n')
+        title_frame.grid(row=0, column=1, columnspan=2, sticky='ew')
+        title_frame.grid_columnconfigure(1, weight=1)
 
         icon = get_image(level.lower()+'.png', (50, 50), basic=True)
         CTkLabel(win, image=icon, fg_color=win["bg"],
@@ -79,8 +80,8 @@ class MessageBox:
         cls,
         type_: str,
         message: str,
-        yes_command: Callable[[None], None] = (lambda: print('yes')),
-        no_command: Callable[[None], None] = (lambda: print('no'))
+        yes_command: Callable[[None], None] = NONE_COMMAND,
+        no_command: Callable[[None], None] = NONE_COMMAND
     ) -> Toplevel:
         return cls.create('info', type_, message, yes_command, no_command)
 
@@ -89,8 +90,8 @@ class MessageBox:
         cls,
         type_: str,
         message: str,
-        yes_command: Callable[[None], None] = (lambda: print('yes')),
-        no_command: Callable[[None], None] = (lambda: print('no'))
+        yes_command: Callable[[None], None] = NONE_COMMAND,
+        no_command: Callable[[None], None] = NONE_COMMAND
     ) -> Toplevel:
         return cls.create('warning', type_, message, yes_command, no_command)
 
@@ -99,8 +100,34 @@ class MessageBox:
         cls,
         type_: str,
         message: str,
-        yes_command: Callable[[None], None] = (lambda: print('yes')),
-        no_command: Callable[[None], None] = (lambda: print('no'))
+        yes_command: Callable[[None], None] = NONE_COMMAND,
+        no_command: Callable[[None], None] = NONE_COMMAND
     ) -> Toplevel:
         return cls.create('error', type_, message, yes_command, no_command)
 
+    @classmethod
+    def ask_input(
+        cls,
+        message: str
+    ) -> Toplevel:
+
+        win = Toplevel()
+        win.attributes('-topmost', True)
+        win.overrideredirect(True)
+        cls.root = win
+        
+        win.geometry("600x200")
+        center(win, 600, 200)
+
+        title_frame = ttk.Frame(win, relief='flat')
+        close = ttk.Button(title_frame, text="X", command=win.destroy)
+        title = ttk.Label(title_frame, text='Question', font=Defont.add(15))
+        close.pack(side='right', anchor='ne')
+        title.pack(side='top', anchor='n')
+        title_frame.grid(row=0, column=1, columnspan=2, sticky='ew')
+        title_frame.grid_columnconfigure(1, weight=1)
+
+        icon = get_image('question.svg', wh=0.12)
+        CTkLabel(win, image=icon, fg_color=win["bg"],
+                 text='', height=60, width=100).grid(row=1, column=0, sticky='w', padx=20)
+        

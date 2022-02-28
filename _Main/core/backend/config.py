@@ -6,7 +6,7 @@ import jwt
 from customtkinter import get_appearance_mode
 from dotenv import load_dotenv
 
-from .utils import *
+from .utils import get_outer_path, token_decode, token_encode
 
 __all__ = ("Config",)
 
@@ -45,14 +45,15 @@ class Config:
             for key, value in v.items():
                 if value == "env":
                     env_val = get_env_key(k, key)
-                    data[k][key] = env_val
+                    data[k][key] = env_val or ''
 
         if data["app"]["save_user_info"] is True:
             path = os.path.join(get_outer_path("config"), "user.cfg")
             with open(path, "w"):
                 pass
-
+        
         config.read_dict(data)
+    
         with open(cls.path, "w") as f:
             config.write(f)
 
@@ -62,7 +63,6 @@ class Config:
         data = config.read_dict(
             {}, (cls.path if not file else get_outer_path("config", file + ".cfg"))
         )
-
         if not data:
             Config._set_default(config)
 
