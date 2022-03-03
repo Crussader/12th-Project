@@ -25,37 +25,50 @@ class Config:
     config: ConfigParser = None
 
     @classmethod
-    def _set_default(cls, config: ConfigParser):
-        mode = get_appearance_mode().lower()
-        data = {
-            "app": {
-                "dark": True if mode == "dark" else False,
-                "cache": True,
-                "save_user_info": True,
-                "save_path": "default",
-            },
-            "database": {
-                "host": "localhost",
-                "user": "root",
-                "password": "env",
-                "database": "hospital",
-            },
-        }
-        for k, v in data.items():
-            for key, value in v.items():
-                if value == "env":
-                    env_val = get_env_key(k, key)
-                    data[k][key] = env_val or ''
-
-        if data["app"]["save_user_info"] is True:
-            path = os.path.join(get_outer_path("config"), "user.cfg")
-            with open(path, "w"):
-                pass
+    def _set_default(cls, config: ConfigParser, file: str):
         
+        if not file:
+            mode = get_appearance_mode().lower()
+            data = {
+                "app": {
+                    "dark": True if mode == "dark" else False,
+                    "cache": True,
+                    "save_user_info": True,
+                    "save_path": "default",
+                },
+                "database": {
+                    "host": "localhost",
+                    "user": "root",
+                    "password": "env",
+                    "database": "hospital",
+                },
+            }
+            for k, v in data.items():
+                for key, value in v.items():
+                    if value == "env":
+                        env_val = get_env_key(k, key)
+                        data[k][key] = env_val or ''
+
+            if data["app"]["save_user_info"] is True:
+                path = os.path.join(get_outer_path("config"), "user.cfg")
+                with open(path, "w"):
+                    pass
+            else:
+                path = cls.path
+            
+        else:
+            data = {'users' : {}}
+            path = get_outer_path('config', 'user.cfg')
+        
+        print(data)
         config.read_dict(data)
-    
-        with open(cls.path, "w") as f:
-            config.write(f)
+
+        try:
+            with open(path, "a") as f:
+                config.write(f)
+        except FileNotFoundError:
+            with open(path, 'w') as f:
+                config.write(f)
 
     @classmethod
     def load(cls, section: str = "", file: str = ""):
@@ -63,8 +76,9 @@ class Config:
         data = config.read_dict(
             {}, (cls.path if not file else get_outer_path("config", file + ".cfg"))
         )
+        print(data)
         if not data:
-            Config._set_default(config)
+            Config._set_default(config, file)
 
         cls.config = config
         if section:

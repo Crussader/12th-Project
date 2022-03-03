@@ -27,6 +27,7 @@ Database Structure for Hospital
 
 """
 
+from datetime import datetime, timedelta
 from typing import Dict, Optional, Union
 
 import mysql.connector as mysql
@@ -34,6 +35,8 @@ from mysql.connector.cursor import MySQLCursor
 
 from .config import Config
 from .models import *
+from .utils import ThreadPool, decode
+
 
 __all__ = ('Database',)
 
@@ -170,22 +173,27 @@ class Database:
                         result = User(*other, None, None)
 
                         if linked_id and not (linked := self.cache.get(linked_id)):
-                            linked = self.find_rec(linked_id, table='users') # linked user is different
-                            result.linked = linked.one()
+                            linked = self.find_rec(linked_id, 'LINKED_ID', table='users') # linked user is different
+                            # result.linked = linked.one()
+                            result.linked = ThreadPool.wait_result(linked).one()
                         
                         if paitent_id and not (paitent := self.cache.get(paitent_id)):
-                            paitent = self.find_rec(paitent_id, table='paitents')
-                            result.paitent = paitent.one()
+                            paitent = self.find_rec(paitent_id, 'ID', table='paitents')
+                            result.paitent = ThreadPool.wait_result(paitent).one()
 
                     elif table == 'doctor':
                         result = Doctor(*res)
 
+                return result
+
     @table_exists(kwargs=False)
+    @ThreadPool.run_threaded()
     def find_rec(self, search: Union[str, int], filter_by: str = '', table: Optional[str] = '', raw=False):
         search_params = {
             "ID": "select * from {} where id = %s",
             "AGE": "select * from {} where age = %s",
             "LINKED_ID": 'select * from {} where linked_id = %s',
+            "PAITENT_ID": 'select * from {} where paitent_id = %s',
             "FIRST_NAME": "select * from {} where first_name = %s",
             "LAST_NAME": "select * from {} where last_name = %s",
             "DEPARTMENT": "select * from {} where department = %s",
@@ -193,18 +201,25 @@ class Database:
         }
 
         if filter_by not in search_params.keys():
-            raise ValueError("Invalid Filter")
+            raise ValueError("Invalid Filter (%s)" % (filter_by,))
 
         if isinstance(search, int):
             search_params = {k: v for k, v in search_params.items() if k in [
-                'ID', 'AGE', 'LINKED_ID']}
+                'ID', 'AGE', 'LINKED_ID', 'PAITENT_ID']}
         elif isinstance(search, str):
             search_params = {k: v for k, v in search_params.items() if k not in [
-                'ID', 'AGE', 'LINKED_ID']}
+                'ID', 'AGE', 'LINKED_ID', 'PAITENT_ID']}
         else:
             raise TypeError("Search Parameter must be an int or str")
 
         results = []
+
+        if table=='users':
+            if Config.load('app')['save_user_info']:
+                cfg = Config.load('users', file='user')
+                data = decode(cfg)
+            
+
         if filter_by:
             result = self._try_fetching(search_params.get(filter_by), 
                                         table, search, raw)
@@ -214,11 +229,13 @@ class Database:
             for param in search_params.values():
                 result = self._try_fetching(param, table, search, raw)
 
-        return Result(results)
+        ThreadPool.add(Result(results))
 
-    @table_exists()
+        
+    @ThreadPool.run_threaded()
     def update_rec(self, id: str, table: Optional[str] = '', kwargs: Dict[str, str] = {}):
         update = ', '.join(f"{k}={v}" if isinstance(v, int) else f'{k}="{v}"'
+                           if isinstance(v, str) else f'{k}=null'
                            for k, v in kwargs.items())
 
         sql = "UPDATE {} SET {} WHERE id = %s".format(table, update)
@@ -234,10 +251,27 @@ class Database:
     @table_exists(kwargs=False)
     def delete_rec(self, id: int, verification_id: str, table: Optional[str] = ''):
         # check verification_id with the one the computer generated and the user recieved
-        sql = "delete from %s where id=%s"
-        self.cursor.execute(sql, (table, id))
+        sql = "delete from {} where id=%s".format(table)
+        self.cursor.execute(sql, (id, ))
         if self.cursor.rowcount:
             self.cnx.commit()
+
+    def update_user(self, _from: int, _to: int, text: str):
+        return self.add_rec('updates', 
+               {'from_id': _from, 
+                'to_id': _to, 
+                'update_text': text,
+                'epoch': datetime.utcnow()})
+
+    def get_updates(self, id: int):
+
+        self.cursor.execute("select * from updates where to_id=%s", (id, ))
+        results = self.cursor.fetchall()
+        if not results:
+            return None
+        else:
+            return Result([Update(*i) for i in results])
+
 
     def close(self):
         self.cnx.close()
@@ -245,12 +279,7 @@ class Database:
 
 if __name__ == '__main__':
     db = Database.from_config()
-    # b = db.update_rec(1, table='paitents', kwargs={'id': 1, 'first_name': 'sai', 
-    #                                                'last_name': 'krishina', 'gender': 1, 'dob': '2008-05-06'})
-    # b = db.update_rec(1, table='users', kwargs={'paitent_id': 1})
-    # print(b)
-    # db.add_rec(table='users', kwargs={'id': 1, 'name': 'sai krishna', 'email': 'sai@gamil.com',
-    #                                   '_password': 'abc', 'gender': 1, 'dob': '2008-05-06'})
-    # print(timeit.timeit("db.find_rec(1, table='paitents')", globals=globals(), number=100))
-    a: User = db.find_rec(1, table='users').one()
-    
+    # # db.update_user(1228182, 128218232, 'new update')
+    res = db.get_updates(128218232).data[-1]
+    print(res)
+    print(res.how_long)

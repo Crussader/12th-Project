@@ -1,8 +1,11 @@
+from configparser import ConfigParser, SectionProxy
 import os
 import random
 import string
-from threading import Thread
-from typing import Any, Dict, List, Tuple, Union
+from tkinter import Canvas, Scrollbar
+from threading import Thread, current_thread
+from typing import Any, Dict, Tuple, Union
+from datetime import date
 
 import jwt
 from customtkinter import *
@@ -14,15 +17,25 @@ __all__ = (
     "random_key",
     "token_encode",
     "token_decode",
-    "run_threaded",
+    "get_age",
+    "chunk",
+    # 'check_threads',
+    # "run_threaded",
     # Constants
     "Color",
     # Classes
+    "ScrollableFrame",
     "Defont",
+    "ThreadPool"
 )
 
-Color = CTkColorManager
-threads: List[Thread] = []
+Color = CTkThemeManager
+# threads: Dict[str, Thread] = {}
+
+def chunk(iter, at: int = 10):
+
+    for i in range(0, len(iter), at):
+        yield iter[i: i+at]
 
 
 def get_outer_path(*paths, file: str = __file__, retry: int = 10):
@@ -100,16 +113,74 @@ def token_decode(token: str, full=False) -> Union[Tuple[str, str], Dict[str, Any
         return token_
     return key, token
 
+def get_age(dob):
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-def run_threaded(func):
-    def inner(*args, **kwargs):
-        t = Thread(target=func, args=args, kwargs=kwargs)
-        t.start()
-        threads.append(t)
-        # t.join()
+def decode(cfg: SectionProxy):
+    print([i for i in cfg.keys()])
+    # for row in cfg:
+        # print(row)
 
-    return inner
+# def run_threaded(func):
+#     def inner(*args, **kwargs):
+#         t = Thread(target=func, args=args, kwargs=kwargs)
+#         t.start()
+#         threads[t.name] = t
+#         return t.name
+        # wont be joining because that
+        # will wait until the thread completed its task
 
+#    return inner
+
+class ThreadPool:
+
+    threads: Dict[str, Thread] = {}
+    results: Dict[str, Any] = {}
+    _is_checking = False
+
+    @classmethod
+    def run_threaded(cls):
+        def wrapper(func):
+            def inner(*args, **kwargs):
+                t = Thread(target=func, args=args, 
+                           kwargs=kwargs)
+                cls.threads[t.name] = t
+                t.start()
+                return t.name
+            return inner
+        return wrapper
+    
+    @classmethod
+    def get(cls, t: str):
+        thread = cls.threads.get(t)
+        if thread:
+            return thread if thread.is_alive() else None
+        return None
+
+    @classmethod
+    def wait_result(cls, t: str):
+        while True:
+            res = cls.results.get(t)
+            if res:
+                break
+        del cls.results[t]
+        return res
+        
+    @classmethod
+    def add(cls, other: Any):
+        thread = current_thread()
+        cls.results[thread.name] = other
+
+# @ThreadPool.run_threaded()
+# def check_threads():
+#     while True:
+#         print(ThreadPool.threads)
+#         time.sleep(5)
+#         new = {name: thread for name, thread in ThreadPool.threads.items()
+#               if thread.is_alive()}
+#         ThreadPool.threads.clear()
+#         ThreadPool.threads.update(**new)
 
 class Defont:
     fonts = ("Avenir", )
@@ -132,15 +203,26 @@ class Defont:
         cls.fonts += (font.split('.')[0], )
         return cls
 
+class ScrollableFrame(CTkFrame):
 
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        canvas = Canvas(self)
+        scrollbar = Scrollbar(self, orient='vertical', command=canvas.yview)
+        self.scrollable_frame = CTkFrame(canvas)
 
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
 
-if __name__ == "__main__":
-    # import pyglet, tkinter
-    # pyglet.font.add_file(get_outer_path('assets', 'fonts', 'Montserrat.ttf'))
-    # root = tkinter.Tk()
-    # MyLabel = tkinter.Label(root,text="test",font=('Montserrat',25))
-    # MyLabel.pack()
-    # root.mainloop()
-    pass
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
 
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+# check_threads()

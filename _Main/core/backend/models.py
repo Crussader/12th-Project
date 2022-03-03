@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Optional, Union
 
 from customtkinter import *
@@ -18,6 +18,7 @@ __all__ = (
     'UserType',
     'PaitentType',
     'DoctorType',
+    'Update'
 )
 
 UserType = Optional['User']
@@ -108,21 +109,34 @@ class Doctor:
 
 @dataclass(slots=True)
 class User:
-
-
     id: int
     name: str
     email: str
     _password: str
     _gender: int
     level: Level
-    dob: str
+    dob: date
     linked: UserType
     paitent: PaitentType
 
     @property
     def gender(self):
         return [None, 'Male', 'Female', 'Other'][self._gender]
+
+    def to_dict(self):
+        attrs = {k: getattr(self, k) for k in self.__slots__}
+        paitent_attrs = {k: getattr(self.paitent, k) for k in self.paitent.__slots__}
+
+        del paitent_attrs['user'] 
+        attrs['paitent'] = paitent_attrs
+
+        # might lead to a serious issue because if i save it here 
+        # then even if the user gets unlinked this person is still linked locally
+        # and other things can be done
+        attrs['linked'] = 'generate'
+
+        return attrs
+        
 
 @dataclass(slots=True)
 class Paitent:
@@ -138,4 +152,31 @@ class Paitent:
     def name(self):
         return ' '.join([self.first_name, self.last_name])
 
+@dataclass(slots=True)
+class Update:
+    id: int
+    from_id: int
+    to_id: int
+    update_text: str
+    epoch: datetime
+
+    @property
+    def how_long(self):
+        def _approx(t):
+            seconds = t.total_seconds()
+            mins = seconds // 60
+            hours = seconds // 3600
+            days = seconds // 86400
+
+            if mins <= 60:
+                time = str(round(mins)) + ' mins ago'
+            elif hours <= 48:
+                time = str(round(hours)) + ' hours ago'
+            else:
+                time = str(round(days)) + ' days ago'
+            
+            return 'About {}'.format(time)
+
+        now = datetime.utcnow()
+        return _approx(now-self.epoch)
 
