@@ -1,3 +1,4 @@
+from cgitb import text
 from datetime import date
 import time
 
@@ -149,23 +150,25 @@ def dob(frame: CTkFrame, label: str, name: str, r: int):
             print(a)
     a = CTkLabel(
         frame, text=label, text_font=Defont.add(16, font='Montserrat'), 
-        fg_color=None, width=150, height=20
+        fg_color=Color.ENTRY_COLOR, width=150, height=20
     )
-    a.grid(row=0 + r, column=0)
+    a.grid(row=0 + r, column=0, padx=20)
 
-    fr = CTkFrame(frame, fg_color=None)
+    fr = CTkFrame(frame, fg_color=Color.ENTRY_COLOR)
     day = ttk.Entry(fr, width=3, font='Montserrat')
     DefaultEntryText.add(day, "DD", name + ".day").bind()
     day.grid(row=0, column=1, pady=10, padx=5)
 
-    slash = CTkLabel(fr, text="/", text_font=Defont.add(16, font='Montserrat'), fg_color=None, width=10)
+    slash = CTkLabel(fr, text="/", text_font=Defont.add(16, font='Montserrat'), 
+                     fg_color=Color.ENTRY_COLOR, width=10)
     slash.grid(row=0, column=2, pady=10)
 
     month = ttk.Entry(fr, width=4, font='Montserrat')
     DefaultEntryText.add(month, "MM", name + ".month").bind()
     month.grid(row=0, column=3, pady=10, padx=5)
 
-    slash2 = CTkLabel(fr, text="/", text_font=Defont.add(16, font='Montserrat'), fg_color=None, width=10)
+    slash2 = CTkLabel(fr, text="/", text_font=Defont.add(16, font='Montserrat'), 
+                      fg_color=Color.ENTRY_COLOR, width=10)
     slash2.grid(row=0, column=4, pady=10)
 
     year = ttk.Entry(fr, width=4, font='Montserrat')
@@ -186,7 +189,7 @@ def gender(frame: CTkFrame, r: int, fg):
     style = ttk.Style(frame)
     style.configure(
         "black.TRadiobutton",
-        background=Color.ENTRY[AppearanceModeTracker.appearance_mode],
+        background=Color.ENTRY_COLOR[AppearanceModeTracker.appearance_mode],
     )
     gender = IntVar()
     male = ttk.Radiobutton(
@@ -204,5 +207,31 @@ def gender(frame: CTkFrame, r: int, fg):
     )
     other.grid(row=0 + r, column=3, pady=10, padx=5)
     return gender
+
+
+class EditableEntry:
+
+    def __init__(self, master: CTkFrame, *args, **kwargs):
+
+        if 'header' in kwargs:
+            self.header = kwargs['header']
+            del kwargs['header']
+
+        if 'text' in kwargs:
+            self.text = kwargs['text']
+            del kwargs["text"]
+
+        inner = self.inner = CTkFrame(master, *args, **kwargs)
+
+        header = CTkLabel(inner, text=self.header, text_font=Defont.add(15), 
+                          height=30, fg_color=None)
+        header.pack(anchor='nw', padx=10, pady=10)
+
+        text = CTkLabel(inner, text=self.text, text_font=Defont.add(15), fg_color=None,
+                        height=40, width=len(self.text)*10, justify='left')
+        text.pack(anchor='n', padx=10)
+
+        self.inner.grid(row=4, padx=10, sticky='nw')
+
 
 

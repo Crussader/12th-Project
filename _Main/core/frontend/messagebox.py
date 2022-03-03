@@ -21,6 +21,7 @@ class MessageBox:
         def inner():
             cls.root.destroy()
             command()
+            
         return inner
 
     @classmethod
@@ -71,7 +72,7 @@ class MessageBox:
         CTkButton(win, text=yes, command=cls.command(yes_command),
                   width=100).place(relx=0.45, rely=0.8)
         CTkButton(win, text=no, command=cls.command(no_command),
-                  fg_color=Color.FRAME, width=100).place(relx=0.7, rely=0.8)
+                  fg_color=Color.FRAME_COLOR, width=100).place(relx=0.7, rely=0.8)
 
         win.mainloop()
 
