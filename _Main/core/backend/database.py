@@ -35,7 +35,7 @@ from mysql.connector.cursor import MySQLCursor
 
 from .config import Config
 from .models import *
-from .utils import ThreadPool, decode
+from .utils import ThreadPool
 
 
 __all__ = ('Database',)
@@ -117,6 +117,74 @@ class Database:
         self._database = other
         return self._database
 
+
+    def _fetch_rec(self, id, table: str):
+        rec = self.cache.get(id)
+        if rec:
+            return rec
+
+        sql = 'select * from {} where id={}'.format(table, id) 
+        self.cursor.execute(sql)
+        _raw = self.cursor.fetchone()
+
+        self.cache[id] = _raw
+        return _raw
+
+    def _get_obj(self, data, table):
+        if table == 'paitents':
+            *other, doctor_id, user_id = data
+            result = Paitent(*other, None, None)
+        
+            if user_id and not (user := self.cache.get(user_id)):
+                user = self._fetch_rec(user_id, table='users')
+                *other, _ = user
+                result.user = User(*other, result)
+            elif user:
+                *other, _ = user
+                result.user = User(*other, result)
+            
+            if doctor_id and not (doctor := self.cache.get(doctor_id)):
+                doctor = self._fetch_rec(doctor_id, table='doctor')
+                result.doctor = Doctor(*doctor)
+
+        elif table == 'users':
+            *other, linked_id, paitent_id = data
+            result = User(*other, None, None)
+
+            if linked_id and not (linked := self.cache.get(linked_id)):
+                linked = self.find_rec(linked_id, 'LINKED_ID', table='users') # linked user is different
+                # result.linked = linked.one()
+                result.linked = ThreadPool.wait_result(linked).one()
+            
+            if paitent_id and not (paitent := self.cache.get(paitent_id)):
+                paitent = self.find_rec(paitent_id, 'ID', table='paitents')
+                result.paitent = ThreadPool.wait_result(paitent).one()
+
+        elif table == 'doctor':
+            *other, user_id, age = data
+            t = self.find_rec(user_id, 'ID', table='users')
+            result = Doctor(*other, None, age)
+            result.user = ThreadPool.wait_result(t).one()
+        
+        return result
+
+    def _try_fetching(self, param, table, search, raw):
+        try:
+            self.cursor.execute(param.format(table), (search,))
+        except mysql.ProgrammingError as e:
+            return None
+        else:
+            if (result := self.cursor.fetchone()):
+                if raw:
+                    return raw
+
+                # objs = []
+                # for res in result:
+                #     obj = self._get_obj(res, table)
+                #     objs.append(obj)
+                
+                return self._get_obj(result, table)
+                    
     def is_connected(self):
         return self.cnx.is_connected()
 
@@ -132,63 +200,9 @@ class Database:
             self.cnx.commit()
             return True
 
-    def _fetch_rec(self, id, table: str):
-        rec = self.cache.get(id)
-        if rec:
-            return rec
-
-        sql = 'select * from {} where id={}'.format(table, id) 
-        self.cursor.execute(sql)
-        _raw = self.cursor.fetchone()
-
-        self.cache[id] = _raw
-        return _raw
-
-    def _try_fetching(self, param, table, search, raw):
-        try:
-            self.cursor.execute(param.format(table), (search,))
-        except mysql.ProgrammingError as e:
-            return None
-        else:
-            if (result := self.cursor.fetchall()) is not []:
-                if raw:
-                    return raw
-
-                for res in result:
-                    if table == 'paitents':
-                        *other, doctor_id, user_id = res
-                        result = Paitent(*other, None, None)
-
-                        if user_id and not (user := self.cache.get(user_id)):
-                            user = self._fetch_rec(user_id, table='users')
-                            *other, _ = user
-                            result.user = User(*other, result)
-                        
-                        if doctor_id and not (doctor := self.cache.get(doctor_id)):
-                            doctor = self._fetch_rec(doctor_id, table='doctor')
-                            result.doctor = Doctor(*doctor)
-
-                    elif table == 'users':
-                        *other, linked_id, paitent_id = res
-                        result = User(*other, None, None)
-
-                        if linked_id and not (linked := self.cache.get(linked_id)):
-                            linked = self.find_rec(linked_id, 'LINKED_ID', table='users') # linked user is different
-                            # result.linked = linked.one()
-                            result.linked = ThreadPool.wait_result(linked).one()
-                        
-                        if paitent_id and not (paitent := self.cache.get(paitent_id)):
-                            paitent = self.find_rec(paitent_id, 'ID', table='paitents')
-                            result.paitent = ThreadPool.wait_result(paitent).one()
-
-                    elif table == 'doctor':
-                        result = Doctor(*res)
-
-                return result
-
     @table_exists(kwargs=False)
     @ThreadPool.run_threaded()
-    def find_rec(self, search: Union[str, int], filter_by: str = '', table: Optional[str] = '', raw=False):
+    def find_rec(self, search: Union[str, int], filter_by: str = '', table: Optional[str] = '', raw=False, cache=False):
         search_params = {
             "ID": "select * from {} where id = %s",
             "AGE": "select * from {} where age = %s",
@@ -214,12 +228,6 @@ class Database:
 
         results = []
 
-        if table=='users':
-            if Config.load('app')['save_user_info']:
-                cfg = Config.load('users', file='user')
-                data = decode(cfg)
-            
-
         if filter_by:
             result = self._try_fetching(search_params.get(filter_by), 
                                         table, search, raw)
@@ -228,9 +236,19 @@ class Database:
         else:
             for param in search_params.values():
                 result = self._try_fetching(param, table, search, raw)
+                results.append(result)
 
         ThreadPool.add(Result(results))
 
+    @ThreadPool.run_threaded()
+    def get_mutiple_users(self, *ids: str):
+
+        sql = f'select * from users where id IN({", ".join(ids)})'
+        self.cursor.execute(sql)
+        if (result := self.cursor.fetchall()):
+            objs = [self._get_obj(res, 'users') for res in result]
+        
+        ThreadPool.add(Result(objs))
         
     @ThreadPool.run_threaded()
     def update_rec(self, id: str, table: Optional[str] = '', kwargs: Dict[str, str] = {}):
@@ -256,12 +274,13 @@ class Database:
         if self.cursor.rowcount:
             self.cnx.commit()
 
-    def update_user(self, _from: int, _to: int, text: str):
+    def update_user(self, _from: int, _to: int, text: str, is_system: bool = False):
         return self.add_rec('updates', 
                {'from_id': _from, 
                 'to_id': _to, 
-                'update_text': text,
-                'epoch': datetime.utcnow()})
+                'update_text': repr(text), # convertes a multiline text into a single line
+                'epoch': datetime.utcnow(),
+                'is_system': is_system})
 
     def get_updates(self, id: int):
 
@@ -280,6 +299,8 @@ class Database:
 if __name__ == '__main__':
     db = Database.from_config()
     # # db.update_user(1228182, 128218232, 'new update')
-    res = db.get_updates(128218232).data[-1]
+    # res = db.get_updates(128218232).data[-1]
+    # print(res)
+    t = db.get_mutiple_users('1', '2')
+    res = ThreadPool.wait_result(t).one(-1)
     print(res)
-    print(res.how_long)

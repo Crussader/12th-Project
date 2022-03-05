@@ -24,6 +24,7 @@ __all__ = (
 UserType = Optional['User']
 PaitentType = Optional['Paitent']
 DoctorType = Optional['Doctor']
+Staff = Union[DoctorType, UserType]
 
 
 @dataclass
@@ -97,16 +98,6 @@ class Level:
 
     lvl: get_level
 
-
-@dataclass(slots=True)
-class Doctor:
-    id: int
-    name: str
-    age: int
-    department: Department
-    degrees: str
-
-
 @dataclass(slots=True)
 class User:
     id: int
@@ -122,21 +113,15 @@ class User:
     @property
     def gender(self):
         return [None, 'Male', 'Female', 'Other'][self._gender]
-
-    def to_dict(self):
-        attrs = {k: getattr(self, k) for k in self.__slots__}
-        paitent_attrs = {k: getattr(self.paitent, k) for k in self.paitent.__slots__}
-
-        del paitent_attrs['user'] 
-        attrs['paitent'] = paitent_attrs
-
-        # might lead to a serious issue because if i save it here 
-        # then even if the user gets unlinked this person is still linked locally
-        # and other things can be done
-        attrs['linked'] = 'generate'
-
-        return attrs
         
+@dataclass(slots=True)
+class Doctor:
+    id: int
+    name: str
+    _dep: Department
+    _extra: str
+    user: User
+    age: int
 
 @dataclass(slots=True)
 class Paitent:
@@ -157,8 +142,9 @@ class Update:
     id: int
     from_id: int
     to_id: int
-    update_text: str
+    text: str
     epoch: datetime
+    is_system: bool
 
     @property
     def how_long(self):

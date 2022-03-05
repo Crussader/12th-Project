@@ -1,16 +1,17 @@
 from itertools import cycle
-from tkinter import IntVar, ttk
+from tkinter import IntVar, ttk, Text, Toplevel
 from typing import List
 
 from customtkinter import *
 
 from ...backend import Database, get_image
 from ...backend.models import *
+from ...backend.models import Staff
 from ...backend.utils import Color, Defont, ThreadPool, chunk, get_age
 from ..defaultentry import DefaultEntryText
 from ..messagebox import MessageBox
-from ..utils import dob
-from .base import Panel
+from ..utils import dob, center
+from .base import Panel, transition
 
 __all__ = ('UserPanel',) 
 
@@ -43,7 +44,8 @@ class _AddUser:
         DefaultEntryText.set_defaults(*DefaultEntryText.load_all_base('add'))
     
     def _submit(self):
-        if agree := self.temp.pop('check') and (agree.get() == 0):
+        agree = self.temp.get('check')
+        if agree and agree.get() == 0:
             msg = f"You can not Procceed without Agreeing to the terms and Conditions of {self.main.APPNAME}"
             MessageBox.warning('ok_cancel', msg)
             return
@@ -171,8 +173,13 @@ class _AddUser:
             return inner
 
         CTkFrame(frame, width=5).place(relx=0.5, rely=0.4, relheight=0.5)
+
         two = IntVar()
+        check = IntVar()
+
         self.temp['two_step'] = two
+        self.temp['check'] = check
+
         two_step = CTkCheckBox(frame, text='Enable Two-step Verification',
                                corner_radius=10, border_width=1)
         two_step.place(relx=0.53, rely=0.35)
@@ -199,15 +206,12 @@ class _AddUser:
         clear.bind('<Leave>', _shrink(clear_img))
         clear.place(relx=0.6, rely=0.55)
 
-        check = IntVar()
-        self.temp['check'] = check
         agree = CTkCheckBox(frame, text=f'You Agreed with the terms and Conditions of {self.main.APPNAME}',
                             text_font=Defont.add(12), border_width=1, corner_radius=10, variable=check)
         agree.place(relx=0.53, rely=0.48)
 
+    @transition
     def add_user(self):
-
-        Panel._transition(self.panel)
         main: CTkFrame = self.main.frames['main']
         a = CTkButton(main, text_font=Defont.add(30, font='Montserrat'), height=50,
                       width=200, text="New User", fg_color=main.fg_color, hover=False,
@@ -262,7 +266,7 @@ class _Users:
         ### Editable Entry ### NOTE
         # fr = EditableEntry(main, header='Name: ', text=user.name.title()) # will think later
         
-    def _create_frames(self, frame: CTkFrame, user: User, r: int, c: int):
+    def _create_frame(self, frame: CTkFrame, user: User, r: int, c: int):
         fr = CTkFrame(frame, fg_color=Color.FRAME_2_COLOR, corner_radius=30, cursor='hand2')
         dp = get_image('user.svg', wh=0.2)
         display = CTkLabel(fr, image=dp, height=120, 
@@ -275,15 +279,14 @@ class _Users:
         # name.pack(anchor='w', padx=10, pady=10)
         name.place(relx=0.2, rely=0.25)
         age = CTkLabel(fr, text=f"Age: {get_age(user.dob)}", fg_color=None,
-                       text_color='darkgrey', text_font=Defont.add(10),
-                       width=50)
+                       text_color='darkgrey', text_font=Defont.add(10), width=50)
         age.place(relx=0.2, rely=0.5)
 
         CTkLabel(fr, text=f'User ID: {user.id}', fg_color=None, width=180).place(relx=0.27, rely=0.5)
         
         CTkLabel(fr, text=f'Paitent ID: {user.paitent.id}', fg_color=None, width=200).place(relx=0.5, rely=0.5)
         
-        edit = CTkButton(fr, text='Edit', hover_color=Color.LABEL_BG_COLOR_COLOR,
+        edit = CTkButton(fr, text='Edit', hover_color=Color.LABEL_BG_COLOR,
                          fg_color=Color.FRAME_COLOR, corner_radius=20,
                          command=lambda: self.load_individual(user, edit=True))
         edit.place(relx=0.8, rely=0.25)
@@ -326,13 +329,11 @@ class _Users:
             column = 0
             for _users in chunk(users, len(users)//2):
                 for user in _users:
-                    main.after(100, self._create_frames, main, user, row, column)
+                    main.after(100, self._create_frame, main, user, row, column)
                     row += 1
                 column += 1
 
     def users(self):
-
-        Panel._transition(self.panel)
         main: CTkFrame = self.main.frames['main']
 
         top = CTkButton(main, text_font=Defont.add(30), height=50,
@@ -353,10 +354,9 @@ class _Users:
         main.grid_columnconfigure(1, weight=1)
         main.after(1100, self._load_users, main, total)
 
-
+    @transition
     def load_individual(self, user: User, edit=False):
 
-        Panel._transition(self.panel)
         main: CTkFrame = self.main.frames['main']
         dp = get_image('user.svg', wh=0.3)
         top = CTkButton(main, text_font=Defont.add(30), height=50, hover=False,
@@ -424,25 +424,166 @@ class _Users:
                                padx=10, sticky='nw', pady=10)
                     r += 1
             
-                # done = CTkButton
-
-        main.after(500, _load)
+        main.after_idle(_load)
 
 class _DoctorUpdates:
 
     def __init__(self, panel: 'UserPanel'):
         self.panel = panel
         self.main = panel.main
+        self.db: Database = self.main.db
 
-    def _load_panel(self):
-        user: User = self.main.user
+    
+    def _shorten(self, text: str, at: int=30):
+        return text[:at] + '....'
+
+    def _reply(self, main: CTkFrame, update: Update, _from: Staff, _to: PaitentType):
+
+        def _update():
+            reply_text = text.get(1.0, 'end')
+            done = self.db.update_user(_to.id, _from.id, reply_text)
+            if done:
+                top.destroy()
+                self.doctor_updates()                
+
+        top = Toplevel()
+        top.attributes('-topmost', True)
+        top.title(self.main.APPNAME)
+        w, h = 600, 600
+        top.geometry(f"{w}x{h}")
+        top.resizable(None, None)
+        center(top, w, h)
+
+        from_label = CTkLabel(top, text=f'From: \tDr. {_to.name.title()}', height=30, 
+                              text_font=Defont.add(13), fg_color=None, justify='left')
+        from_label.pack(anchor='nw', padx=10, pady=10)
+
+        ttk.Separator(top).pack(fill='x', padx=10)
+
+        to_label = CTkLabel(top, text=f'To: \t{_from.name.title()}', height=30,
+                            text_font=Defont.add(13), fg_color=None, justify='left')
+        to_label.pack(anchor='nw', padx=10, pady=10)
+
+        ttk.Separator(top).pack(fill='x', padx=10)
+
+        replying_to = CTkLabel(top, text=f'Replying to:\n{self._shorten(update.text, 10)}',
+                               text_font=Defont.add(13), fg_color=None, justify='left')
+        replying_to.pack(anchor='nw', padx=10, pady=10)
+
+        ttk.Separator(top).pack(fill='x', padx=10)
+
+        text = Text(top, font=Defont.add(12), height=50, relief='flat')
+        text.focus()
+        text.pack(anchor='nw', padx=10, pady=10)
+
+        reply = CTkButton(top, image=get_image('send.svg', wh=0.05), cursor='hand2',
+                          fg_color=None, text='', width=50, corner_radius=20, 
+                          hover_color=Color.FRAME_COLOR, height=35,
+                          command=_update)
+        reply.place(relx=0.87, rely=0.01)
+
+        main.after(500, top.mainloop)
+
+    @transition
+    def _show_update(self, update: Update, _from: Staff, _to: PaitentType):
+        main: CTkFrame = self.main.frames['main']
+
+        def load():
+            dp = get_image('user.svg', wh=0.3)
+            top=CTkButton(main, text='', height=50, hover=False,
+                        width=200, fg_color=main.fg_color,
+                        image=dp)
+            top.grid(row=0, column=0, padx=10, pady=10, sticky='nw')
+
+            CTkFrame(main, width=5, height=150).grid(row=0, column=1, padx=5)
+
+            from_label = CTkLabel(main, text=f"From: \tDr. {_from.name.title()}", corner_radius=20,
+                                height=40, text_font=Defont.add(15), fg_color=None)
+            from_label.text_label.grid_configure(sticky='w')
+            from_label.grid(row=0, column=2, sticky='nw', pady=30)
+
+            to_label = CTkLabel(main, text=f"To: \t{_to.name.title()}",
+                                height=40, text_font=Defont.add(15), fg_color=None)
+            to_label.text_label.grid_configure(sticky='w')
+            to_label.grid(row=0, column=2, sticky='nw', pady=60, padx=15)
+
+            _update = CTkLabel(main, text=update.text, width=300, height=100, 
+                            fg_color=main.fg_color, justify='left',
+                            text_font=Defont.add(13))
+            _update.text_label.grid_configure(sticky='w')
+            # _update.grid(row=1, column=1, sticky='nw', pady=30, padx=20)
+            _update.place(relx=0.01, rely=0.3)
         
-        last = CTkLabel
+            reply = CTkButton(main, text='Reply', text_font=Defont.add(12),
+                            command=lambda: self._reply(main, update, _from, _to))
+            reply.place(relx=0.15, rely=0.15)
 
+            back = CTkButton(main, fg_color=main.fg_color, hover=False, height=30,
+                         command=self.doctor_updates, text='', image=get_image('back.svg', wh=0.1),
+                         width=50, compound='left', cursor='hand2')
+            back.place(relx=0.023, rely=0.2)
 
+        main.after(200, load)
+        # reply.grid(row=0, column=2, sticky='nw', pady=120, padx=15)
+
+    def _create_frame(self, frame: CTkFrame, update: Update, r: int, c: int):
+        update_frame = CTkFrame(frame, fg_color=Color.FRAME_COLOR, corner_radius=30, cursor='hand2')
+        dp = get_image('user.svg', wh=0.2)
+        display = CTkLabel(update_frame, image=dp,
+                           height=120)
+        display.image=dp
+        display.pack(side='left', padx=10, pady=10)
+
+        t = self.db.find_rec(update.from_id, 'ID', table='doctor')
+        from_user: Doctor = ThreadPool.wait_result(t).one()
+
+        _from = CTkLabel(update_frame, text='Dr. '+from_user.name.title(), 
+                         height=30, text_font=Defont.add(15), fg_color=None, 
+                         cursor='arrow')
+        _from.place(relx=0.2, rely=0.25)
+    
+        t = self.db.find_rec(update.to_id, 'ID', table='paitents') # because the person is a paitent not a user
+        to_paitent: Paitent = ThreadPool.wait_result(t).one()
+
+        to =CTkLabel(update_frame, text=f"To: {to_paitent.name.title()}", fg_color=None,
+                 width=180, text_font=Defont.add(10), cursor='arrow')
+        to.text_label.grid_configure(sticky='w')
+        to.place(relx=0.2, rely=0.5)
+
+        CTkLabel(update_frame, text=f"System: {bool(update.is_system)}", fg_color=None,
+                 text_font=Defont.add(10), text_color='darkgrey', cursor='arrow').place(relx=0.19, rely=0.65)
+
+        CTkLabel(update_frame, text=update.how_long, fg_color=None, cursor='arrow',
+                 text_color='darkgrey', text_font=Defont.add(10)).place(relx=0.8, rely=0.5)
+        
+        date=CTkLabel(update_frame, text=str(update.epoch.date()), fg_color=None,
+                 text_color='darkgrey', text_font=Defont.add(10), cursor='arrow')
+        date.text_label.grid_configure(sticky='w')
+        date.place(relx=0.8, rely=0.65)
+
+        remove = CTkButton(update_frame, text='', fg_color=update_frame.fg_color, corner_radius=20,
+                           hover_color=frame.fg_color, width=80,
+                           image=get_image('done.svg', wh=0.1),
+                           command=update_frame.destroy)
+        remove.place(relx=0.87, rely=0.1)
+
+        update_frame.bind("<Button-1>", lambda _: self._show_update(update, from_user, to_paitent))
+        for child in update_frame.winfo_children():
+            if not isinstance(child, CTkButton):
+                child.bind('<Button-1>', lambda _: self._show_update(update, from_user, to_paitent))
+
+        update_frame.grid(row=r, column=c, padx=20, pady=30,
+                          sticky='nw' if c == 0 else 'nw', ipadx=300)
+
+    def _load_panel(self, frame: CTkFrame):
+        user: User = self.main.user
+
+        updates: List[Update] = self.db.get_updates(user.id).all()
+        frame.after(500, self._create_frame, frame, updates[0], 4, 0)
+
+    @transition
     def doctor_updates(self):
 
-        Panel._transition(self.panel)
         main: CTkFrame = self.main.frames['main']
         a = CTkButton(main, text_font=Defont.add(30), height=50, hover=False,
                       width=200, text='Doctor Updates', fg_color=main.fg_color,
@@ -453,15 +594,16 @@ class _DoctorUpdates:
         CTkLabel(main, text_font=Defont.add(11), height=50,
                  width=600, text=about, fg_color=main.fg_color).grid(row=2, column=0, padx=10, sticky='nw')
         
-        reload = CTkButton(main, text='Reload', hover_color=Color.LABEL_BG_COLOR,
-                           fg_color=Color.FRAME_2_COLOR, corner_radius=20)
-        reload.grid(row=2, column=1, sticky='ne', padx=10)
+        reload = CTkButton(main, text='', hover_color=Color.LABEL_BG_COLOR,
+                           fg_color=Color.FRAME_2_COLOR, corner_radius=30,
+                           image = get_image('reload.svg', wh=0.1))
+        reload.grid(row=2, column=1, sticky='ne', padx=20)
 
         CTkFrame(main, height=5).grid(row=3, column=0, columnspan=2,
                                       padx=20, pady=10, sticky='ew')
         main.grid_columnconfigure(1, weight=1)
+        main.after_idle(self._load_panel, main)
 
-    
 class UserPanel(Panel):
     level = 1
 
@@ -488,11 +630,14 @@ class UserPanel(Panel):
         self.main.after(500, self._shortcut, self.main.frames['main'], 'update-user.svg',
                         '\nDoctor Updates', 'See the Updates from your Doctor!', 'doctor_updates')
     
+    @transition
     def add_user(self):
         _AddUser(self).add_user()
 
+    @transition
     def users(self):
         _Users(self).users()
 
+    @transition
     def doctor_updates(self):
         _DoctorUpdates(self).doctor_updates()

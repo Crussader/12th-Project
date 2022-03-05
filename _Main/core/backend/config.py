@@ -1,6 +1,6 @@
 import os
 from configparser import ConfigParser
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import jwt
 from customtkinter import get_appearance_mode
@@ -25,9 +25,9 @@ class Config:
     config: ConfigParser = None
 
     @classmethod
-    def _set_default(cls, config: ConfigParser, file: str):
+    def _set_default(cls, config: ConfigParser, file: str = 'default'):
         
-        if not file:
+        if file == 'default':
             mode = get_appearance_mode().lower()
             data = {
                 "app": {
@@ -60,7 +60,7 @@ class Config:
             data = {'users' : {}}
             path = get_outer_path('config', 'user.cfg')
         
-        print(data)
+        # print(data)
         config.read_dict(data)
 
         try:
@@ -71,38 +71,54 @@ class Config:
                 config.write(f)
 
     @classmethod
-    def load(cls, section: str = "", file: str = ""):
+    def load(cls, section: str = "", file: str = "default"):
         config = ConfigParser()
-        data = config.read_dict(
-            {}, (cls.path if not file else get_outer_path("config", file + ".cfg"))
-        )
-        print(data)
-        if not data:
-            Config._set_default(config, file)
+        # print(cls.path if file == 'default' else get_outer_path("config", file + ".cfg"))
 
-        cls.config = config
+        if file == 'default':
+            with open(cls.path) as f:
+                config.read_file(f)
+        else:
+            with open(get_outer_path('config', file+'.cfg')) as f:
+                config.read_file(f)
+
+        if not config.sections():
+            Config._set_default(config, file)        
+
+        if file == 'default':
+            cls.config = config
+
         if section:
             return config[section]
         return config
 
     @classmethod
-    def add_user_config(cls, username: str, data: Dict[str, Any]):
-        config = cls.load(file="user")
-        if config["app"]["save_user_info"]:
-            if not config.has_section("users"):
-                config.add_section("users")
+    def add_user_config(cls, id: str, data: Dict[str, Any]):
+        config = Config.load() if not hasattr(cls, 'config') else cls.config
 
+        if config["app"]["save_user_info"]:
+            other = Config.load(file='users')
             token = token_encode(data, k=10)
-            config.set("users", username, token)
+            other.set("users", id, token)
 
     @classmethod
-    def get_user_config(cls, username: str) -> Dict[str, Any]:
-        config = cls.load()
-        if config["app"]["save_user_info"]:
-            token = config.get("users", username)
-            key, token = token_decode(token)
-            return jwt.decode(token, key)
-        return {}
+    def get_user_config(cls, id: str, _config = None) -> Dict[str, Any]:
+        config = Config.load() if not hasattr(cls, 'config') else cls.config
+        if config.get("app", "save_user_info"):
+            other = _config or Config.load('users', 'user')
+            id = other.get(id)
+            
+        return None
+
+    @classmethod
+    def get_all_saved_users(cls) -> List[int]:
+        config = Config.load() if not hasattr(cls, 'config') else cls.config
+        if config.get('app', 'save_user_info'):
+            other = Config.load('users', 'user')
+            ids = other.get('ids')
+            if ids:
+                return ids.split(',')
+        return []           
 
 
 # User Config Structure

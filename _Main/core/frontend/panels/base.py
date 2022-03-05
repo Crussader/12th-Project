@@ -3,8 +3,8 @@ from typing import Callable
 
 from customtkinter import *
 
-from ...backend.imagetk import get_image
-from ...backend.utils import Color, Defont
+from core.backend.imagetk import get_image
+from core.backend.utils import Color, Defont
 
 
 class Panel:
@@ -12,48 +12,6 @@ class Panel:
 
     def __init__(self, main):
         self.main = main
-
-    def __eq__(self, __o: object) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return self.level == __o
-
-    def __ne__(self, __o: object) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return self.level != __o
-
-    def __ge__(self, __o: int) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return __o >= self.level
-
-    def __gt__(self, __o: int) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return __o > self.level
-
-    def __le__(self, __o: int) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return __o <= self.level
-
-    def __lt__(self, __o: int) -> bool:
-        if not isinstance(__o, int):
-            raise TypeError(
-                f"{type(__o)} can not be compared with {self.__class__.__name__}")
-
-        return __o < self.level
 
     def _hover(self, frame: CTkFrame, color_in=None, color_out=None, check: Callable=None):
         color_in = color_in or Color.LABEL_BG_COLOR
@@ -79,14 +37,15 @@ class Panel:
         frame.bind("<Leave>", leave)
 
     def _shortcut(self, master: CTkFrame, image: str, text: str, sub_text: str, func: str):
+        def command():
+            self.main._set_and_run(self.main.frames[func], func)
+
         frame = CTkFrame(master, cursor='hand2', corner_radius=30)
-
         CTkFrame(frame, height=50, fg_color=frame.fg_color).pack(pady=20)
-
         short = CTkButton(frame, text=text, fg_color=frame.fg_color,
                           compound="top", image=get_image(image),
                           hover=False, text_font=Defont.add(20, font='Montserrat'),
-                          command=lambda: getattr(self, func)())
+                          command=command)
         short.pack(pady=5, padx=20)
 
         CTkLabel(frame, text=sub_text, width=350, fg_color=frame.fg_color,
@@ -117,7 +76,7 @@ class Panel:
                         fg_color=Color.LABEL_BG_COLOR if first else frame.fg_color,
                         command=lambda: self.main._set_and_run(btn_frame, func),
                         width=100, hover=False)
-                        
+
         self._hover(btn_frame, color_out=frame.fg_color,
                     check=lambda: (self.main.current == btn_frame))
 
@@ -135,27 +94,25 @@ class Panel:
         home = self._load_button(tab, 'home.svg', 0.1, 'home', first=True)
         self.main.home_button = home
 
-        if self >= 1:
+        if self.level >= 1:
             add_user = self._load_button(tab, 'add-user.svg', 0.11, 'add_user')
+            self.main.frames['add_user'] = add_user
+            if self.level > 1:
+                find_user = self._load_button(tab, 'find-user.svg', 0.11, 'find_user')
+                self.main.frames['find_user'] = find_user
 
-            if self > 1:
-                find_user = CTkButton(tab, image=get_image("find-user.svg", wh=0.11), cursor='hand2',
-                                      text='', fg_color=Color.FRAME_COLOR, width=80, height=70, hover_color=Color.LABEL_BG_COLOR,
-                                      command=lambda: self.main._set_and_run(find_user, "find_user"))
-                find_user.pack(pady=20)
-
-        if self >= 1:
-            if self == 1:
+        if self.level >= 1:
+            if self.level == 1:
                 users = self._load_button(tab, 'users.svg', 0.11, 'users')
+                self.main.frames['users'] = users
 
             update_user = self._load_button(
-                tab, 'update-user.svg', 0.11, 'update_user' if self > 1 else 'doctor_updates')
+                tab, 'update-user.svg', 0.11, 'update_paitent' if self.level > 1 else 'doctor_updates')
+            self.main.frames['update_paitent' if self.level > 1 else 'doctor_updates'] = update_user
 
-        if self == 3:
-            delete_user = CTkButton(tab, image=get_image("remove-user.svg", wh=0.11), cursor='hand2',
-                                    text='', fg_color=Color.FRAME_COLOR, width=80, height=70, hover_color=Color.LABEL_BG_COLOR,
-                                    command=lambda: self.main._set_and_run(delete_user, "delete_user"))
-            delete_user.pack(pady=20)
+        if self.level == 3:
+            delete_user = self._load_button(tab, 'remove-user.svg', 0.11, 'delete_user')
+            self.main.frames['delete_user'] = delete_user
 
         # settings = CTkButton(tab, image=get_image("settings.svg", wh=0.11), cursor='hand2',
         #                      text='', fg_color=Color.FRAME, width=80, height=70, hover_color=Color.LABEL_BG_COLOR,
@@ -163,3 +120,20 @@ class Panel:
         # settings.pack(pady=10, side='bottom')
         settings = self._load_button(tab, 'settings.svg', 0.11, 'settings')
         settings.pack_configure(side='bottom')
+
+    def settings(self):
+
+        self._transition()
+        main: CTkFrame = self.main.frames['main']
+
+
+def transition(func):
+    def wrapper(*args, **kwargs):
+        self, *other = args
+        try:
+            Panel._transition(self.panel)
+        except AttributeError:
+            Panel._transition(self)
+
+        return func(self, *other, **kwargs)
+    return wrapper

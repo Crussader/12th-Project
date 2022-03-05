@@ -39,7 +39,7 @@ def chunk(iter, at: int = 10):
 
 
 def get_outer_path(*paths, file: str = __file__, retry: int = 10):
-
+    
     path = os.path.join(*paths)
     if os.path.exists(path):
         return path
@@ -48,7 +48,6 @@ def get_outer_path(*paths, file: str = __file__, retry: int = 10):
     file = file or __file__
     outer = os.path.dirname(file)
     path = os.path.join(outer, *paths)
-
     if not os.path.exists(path):
 
         # resolves a path by recursively walking up the tree
@@ -117,7 +116,7 @@ def get_age(dob):
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-def decode(cfg: SectionProxy):
+def decode(cfg):
     print([i for i in cfg.keys()])
     # for row in cfg:
         # print(row)
@@ -199,6 +198,7 @@ class Defont:
     @classmethod
     def new(cls, font: str):
         import pyglet
+        # script = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         pyglet.font.add_file(get_outer_path('assets', 'fonts', font))
         cls.fonts += (font.split('.')[0], )
         return cls
