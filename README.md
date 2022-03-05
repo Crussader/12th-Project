@@ -15,9 +15,9 @@ Rquirements
 Uses the following Libs
 - Tkinter
 - Pillow
-- JSON Web Token (jwt)
 - [Sun-Valley-ttk-theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
 - [tksvg](https://github.com/TkinterEP/python-tksvg)
+- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
 - *more will be added
 
 `pip install pyjwt`
