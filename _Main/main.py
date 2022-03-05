@@ -9,7 +9,8 @@ from core import *
 from core.backend.utils import *
 from core.frontend.utils import *
 
-__version__ = "0.4"
+__version__ = "0.7"
+
 
 
 class App(CTk):
@@ -17,8 +18,9 @@ class App(CTk):
     frames: Dict[str, CTkFrame] = {}
     current = None
     home_button = None
-    panel: Union[User, Admin, Doctor] = None
+    panel: Union[UserPanel, Admin, DoctorPanel] = None
     db = Database.from_config()
+    user: User = None
 
     def __init__(self, panel):
 
@@ -28,25 +30,24 @@ class App(CTk):
         self.iconphoto(True, get_image('icon.png', basic=True))
         self.title(self.APPNAME)
 
-        self.state('zoomed')
         load_theme(self)
         tksvg.load(self)
-        self.load_window()
-
-
+        self.resizable(None, None)
+        self.state('zoomed')
 
     def _set_and_run(self, frame: CTkFrame, func: str):
 
-        frame.configure(fg_color=Color.LABEL_BG)
+        frame.configure(fg_color=Color.LABEL_BG_COLOR)
         if self.current:
             self.after(10)
             self.frames['selected'].destroy()
-            self.current.configure(fg_color=Color.FRAME)
+            tab = self.frames['tab']
+            self.current.configure(fg_color=tab.fg_color)
             for ch in self.current.winfo_children():
                 if isinstance(ch, CTkButton):
-                    ch.configure(fg_color=Color.FRAME)
+                    ch.configure(fg_color=tab.fg_color)
 
-        selected = CTkFrame(frame, fg_color=Color.MAIN,
+        selected = CTkFrame(frame, fg_color=Color.MAIN_COLOR,
                             height=30, width=5)
         self.frames['selected'] = selected
         selected.pack(side='left', padx=3,
@@ -54,7 +55,7 @@ class App(CTk):
 
         for ch in frame.winfo_children():
             if isinstance(ch, CTkButton):
-                ch.configure(fg_color=Color.LABEL_BG)
+                ch.configure(fg_color=Color.LABEL_BG_COLOR)
 
         if func:
             func = getattr(
@@ -175,15 +176,15 @@ class App(CTk):
         logo_l.image = logo
         logo_l.pack(pady=15, padx=5)
 
-        CTkLabel(tab, text=self.APPNAME.split()[0], text_color=Color.CHECKBOX_LINES,
+        CTkLabel(tab, text=self.APPNAME.split()[0], text_color=Color.CHECKBOX_LINES_COLOR,
                  text_font=Defont.add(12), width=100, fg_color=None).pack()
 
         ttk.Separator(tab).pack(fill='x', padx=5, pady=15)
 
-        CTkFrame(tab, fg_color=Color.FRAME, width=70,
+        CTkFrame(tab, fg_color=tab.fg_color, width=70,
                  height=125).pack(pady=5)  # seperator
 
-        CTkLabel(tab, text=f'V {__version__}', text_color=Color.LABEL_BG,
+        CTkLabel(tab, text=f'V {__version__}', text_color=Color.LABEL_BG_COLOR,
                  fg_color=None, width=50, text_font=Defont.add(10)).pack(side='bottom', pady=10)
         self.panel.load_tab()
 
@@ -192,10 +193,10 @@ class App(CTk):
         top = CTkFrame(self, width=400, height=100)
         self.frames['top'] = top
 
-        profile = CTkFrame(top, fg_color=Color.FRAME)
-        pfp = CTkButton(profile, image=get_image('user.svg', wh=0.1),
-                        width=100, height=70, hover_color=Color.FRAME,
-                        fg_color=Color.FRAME, text='Parikshit', compound='right',
+        profile = CTkFrame(top, fg_color=top.fg_color)
+        pfp = CTkButton(profile, image=get_image('user.svg', wh=0.1), text_font=Defont.add(12),
+                        width=100, height=70, hover_color=top.fg_color,
+                        fg_color=top.fg_color, text=self.user.name.title(), compound='right',
                         cursor='hand2')
         pfp.pack(side='right')
         profile.pack(pady=20, padx=10, side='right', anchor='ne')
@@ -207,8 +208,25 @@ class App(CTk):
 
 
 if __name__ == '__main__':
+    Color.initialize_color_theme('blue')
     Defont.new('Montserrat.ttf')
-    # set_appearance_mode('light')
-    # print(Defont.fonts)
-    app = App(UserPanel)
+    # import pyglet
+    # pyglet.font.add_file('e:\hhdcontents\School\Projects\Final 12th Project\\assets\\fonts\\Montserrat.tff')
+    # Defont.fonts += ('Montserrat.tff'.split('.')[0], )
+
+    app = App(DoctorPanel)
+    t = app.db.find_rec(2, 'ID', table='users')
+    app.user = ThreadPool.wait_result(t).one()
+    app.load_window()
     app.mainloop()
+
+    # t = App.db.find_rec(1, 'ID', table='doctor')
+    # user = ThreadPool.wait_result(t).one()
+    # print(user)
+    # print(user.to_dict())
+
+
+    # users = Config.get_all_saved_users()
+    # t = App.db.get_mutiple_users(*users)
+    # res = ThreadPool.wait_result(t)
+    # print(res)
