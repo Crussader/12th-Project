@@ -38,7 +38,10 @@ class Panel:
 
     def _shortcut(self, master: CTkFrame, image: str, text: str, sub_text: str, func: str):
         def command():
-            self.main._set_and_run(self.main.frames[func], func)
+            if isinstance(func, str):
+                self.main._set_and_run(self.main.frames[func], func)
+            else:
+                func()
 
         frame = CTkFrame(master, cursor='hand2', corner_radius=30)
         CTkFrame(frame, height=50, fg_color=frame.fg_color).pack(pady=20)
