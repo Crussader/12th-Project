@@ -8,7 +8,6 @@ A Hospital Program which has few of the following core feautres:
 
 And some more goodies...
 
------
 
 Rquirements
 -----
@@ -25,3 +24,4 @@ Uses the following Libs
 `pip install customtkinter`
 
 Note: Unpack the themes.zip into the same folder and it can be used in `_Main/assets`
+
